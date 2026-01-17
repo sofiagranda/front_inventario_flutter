@@ -50,7 +50,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   title: Text(p["nombre"]),
                   subtitle: Text("Stock: ${p["stock"]}"),
                   trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.redAccent),
+                    icon: const Icon(Icons.delete, color: Colors.orangeAccent),
                     onPressed: () async {
                       await api.eliminarProducto(p["id"]);
                       _loadProductos();
@@ -63,7 +63,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               },
             ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.redAccent,
+        backgroundColor: Colors.orangeAccent,
         child: const Icon(Icons.add),
         onPressed: () {
           Navigator.pushNamed(context, "/create");

@@ -1,64 +1,57 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:inventario_app/firebase_options.dart';
+import 'package:inventario_app/screens/cliente_form_screen.dart';
+import 'package:inventario_app/screens/home_screen.dart';
+import 'package:inventario_app/screens/onboarding_screen.dart';
+import 'package:inventario_app/screens/splash_screen.dart';
 import 'package:inventario_app/screens/product_list_screen.dart';
 import 'package:inventario_app/screens/product_form_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
+import 'screens/home_login_screen.dart';
 
-void main() {
-  // Añadimos 'const' aquí para mejorar el rendimiento inicial
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const InventarioApp());
 }
+
 
 class InventarioApp extends StatelessWidget {
   const InventarioApp({super.key});
 
-  // Es mejor práctica usar const para el almacenamiento si no requiere configuración dinámica
-  static const _storage = FlutterSecureStorage();
-
-  Future<bool> _isLoggedIn() async {
-    final token = await _storage.read(key: "access");
-    return token != null;
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner:
-          false, // Opcional: quita la banda roja de "Debug"
+      debugShowCheckedModeBanner: false,
       title: 'Inventario',
       theme: ThemeData.dark().copyWith(
         colorScheme: const ColorScheme.dark(
-          primary: Colors.redAccent,
+          primary: Colors.orangeAccent,
           secondary: Colors.red,
         ),
         scaffoldBackgroundColor: const Color(0xFF121212),
       ),
       routes: {
-        "/login": (_) => LoginScreen(),
-        "/home": (_) => HomeScreen(),
+        "/splash": (context) => const SplashScreen(),
+        "/onboarding": (context) => const OnboardingScreen(),
+        "/login": (_) => const LoginScreen(),
+        '/registro': (context) => ClienteFormScreen(), 
+        "/home": (_) => const HomeScreen(),
+        "/homel": (_) => const HomeLoginScreen(),
         "/productos": (_) => ProductListScreen(),
-        "/create": (_) => const ProductFormScreen(editMode: false),
-        "/edit": (context) { 
-          final producto = 
-          ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-          return ProductFormScreen(producto: producto, editMode: true);
+        "/create": (_) => const ProductoFormScreen(),
+        "/edit": (context) {
+          final producto =
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>;
+          return ProductoFormScreen(producto: producto);
         },
       },
-      home: FutureBuilder<bool>(
-        future: _isLoggedIn(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          // Si hay token va a Home, si no a Login
-          return snapshot.data == true
-              ? const HomeScreen()
-              : const LoginScreen();
-        },
-      ),
+      initialRoute: "/splash", // 👈 arranca siempre en Splash
     );
   }
 }

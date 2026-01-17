@@ -14,29 +14,43 @@ class _LoginScreenState extends State<LoginScreen> {
   final _userController = TextEditingController();
   final _passController = TextEditingController();
   final _storage = FlutterSecureStorage();
+  bool _isLoading = false;
 
   Future<void> _login() async {
-    final response = await http.post(
-      Uri.parse(
-        "https://paredes-inventario-api.desarrollo-software.xyz/api/auth/login/",
-      ),
-      body: {
-        "username": _userController.text,
-        "password": _passController.text,
-      },
-    );
+    setState(() => _isLoading = true);
 
-    if (!mounted) return;
+    try {
+      final response = await http.post(
+        Uri.parse(
+          "https://paredes-inventario-api.desarrollo-software.xyz/api/auth/login/",
+        ),
+        body: {
+          "username": _userController.text,
+          "password": _passController.text,
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final token = data["token"];
-      await _storage.write(key: "token", value: token);
-      Navigator.pushReplacementNamed(context, "/home");
-    } else {
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print("ESTRUCTURA COMPLETA: $data");
+        final token = data["token"];
+        final bool isStaff = data["is_staff"] ?? false;
+        await _storage.write(key: "token", value: token);
+        await _storage.write(key: "is_staff", value: isStaff.toString());
+        Navigator.pushReplacementNamed(context, "/home");
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Credenciales inválidas")));
+      }
+    } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Credenciales inválidas")));
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -50,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             Text(
               'Bienvenido',
-              style: TextStyle(fontSize: 28, color: Colors.redAccent),
+              style: TextStyle(fontSize: 28, color: Colors.orangeAccent),
             ),
             SizedBox(height: 20),
             TextField(
@@ -63,12 +77,52 @@ class _LoginScreenState extends State<LoginScreen> {
               obscureText: true,
             ),
             SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _login,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-              ),
-              child: Text('Iniciar sesión'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _login,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orangeAccent,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Iniciar sesión',
+                          style: TextStyle(fontSize: 14, color: Colors.white),
+                        ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      "/registro",
+                    ); // ruta hacia tu ClienteFormScreen
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey.shade600,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text(
+                    'Registrarse',
+                    style: TextStyle(fontSize: 14, color: Colors.white),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
