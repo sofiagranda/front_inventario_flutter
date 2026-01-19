@@ -13,8 +13,8 @@ Aplicación móvil desarrollada en **Flutter** para el control y gestión de inv
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone [https://github.com/sofiagranda/inventario_app.git](https://github.com/sofiagranda/inventario_app.git)
-    cd inventario_app
+    git clone [https://github.com/sofiagranda/front_inventario_flutter.git](https://github.com/sofiagranda/front_inventario_flutter.git)
+    cd front_inventario_flutter
     ```
 
 2.  **Instalar dependencias:**
