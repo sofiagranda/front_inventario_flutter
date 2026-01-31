@@ -63,3 +63,5 @@ El proyecto utiliza las siguientes librerías clave:
 
 ---
 > **Nota para Desarrolladores:** Si realizas cambios en la interfaz o lógica de favoritos, por favor trabaja sobre una rama (branch) secundaria y realiza un Pull Request hacia `main`.
+>
+> <img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/f4fb6217-115a-45e8-bb80-b672132fa8fb" />
