@@ -1,331 +1,68 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  final _storage = FlutterSecureStorage();
-  final String baseUrl =
-      "https://paredes-inventario-api.desarrollo-software.xyz/api";
+  late Dio dio;
 
-  Future<String?> _getToken() async {
-    return await _storage.read(key: "token");
-  }
-
-  Future<void> saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("authToken", token);
-  }
-
-  Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString("authToken");
-  }
-
-  Future<void> clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove("authToken");
-  }
-
-  Future<List<dynamic>> getProductos({String? categoria, String? orden}) async {
-    final token = await _getToken();
-    final headers = {"Content-Type": "application/json"};
-
-    if (token != null && token.isNotEmpty) {
-      headers["Authorization"] = "Token $token";
-    }
-
-    // 1. Construimos los parámetros de consulta (Query Parameters)
-    Map<String, String> queryParameters = {};
-
-    if (categoria != null && categoria != "Todas las categorías") {
-      queryParameters["categoria"] = categoria;
-    }
-
-    if (orden != null && orden != "") {
-      queryParameters["orden"] = orden;
-    }
-
-    // 2. Creamos la URI final inyectando los parámetros
-    // Esto convierte "baseUrl/productos/" en "baseUrl/productos/?categoria=Calzado&orden=Precio..."
-    final uri = Uri.parse(
-      "$baseUrl/productos/",
-    ).replace(queryParameters: queryParameters);
-
-    final response = await http.get(
-      uri, // Usamos la nueva URI con filtros
-      headers: headers,
+  ApiService() {
+    dio = Dio(
+      BaseOptions(
+        baseUrl: "https://paredes-inventario-api.desarrollo-software.xyz/api/",
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+        // contentType: 'application/json',
+      ),
     );
 
-    if (response.statusCode == 200) {
-      final data = json.decode(
-        utf8.decode(response.bodyBytes),
-      ); // utf8 por si hay acentos
-      return data["results"];
-    } else if (response.statusCode == 401) {
-      await _storage.delete(key: "token");
-      throw Exception("Sesión expirada, vuelve a iniciar sesión");
-    } else {
-      throw Exception("Error al obtener productos: ${response.body}");
-    }
-  }
+    // --- INTERCEPTOR DE PETICIONES (Equivalente a api.interceptors.request.use) ---
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          // Buscamos el token en SharedPreferences (localStorage de Flutter)
+          final prefs = await SharedPreferences.getInstance();
+          final token = prefs.getString('token');
 
-  Future<void> crearProducto(Map<String, dynamic> data, File? imagen) async {
-    final token = await _getToken();
-    final url = Uri.parse("$baseUrl/productos/");
+          if (token != null) {
+            // Replicamos exactamente tu encabezado de Axios
+            options.headers["Authorization"] = "Token $token";
+          }
+          options.headers["Accept"] = "application/json";
 
-    var request = http.MultipartRequest("POST", url);
-
-    request.headers["Authorization"] = "Token $token";
-
-    data.forEach((key, value) {
-      request.fields[key] = value.toString();
-    });
-
-    if (imagen != null) {
-      request.files.add(
-        await http.MultipartFile.fromPath('imagen', imagen.path),
-      );
-    }
-
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-
-    if (response.statusCode != 201) {
-      throw Exception("Error al crear producto: ${response.body}");
-    }
-  }
-
-  Future<void> editarProducto(
-    int id,
-    Map<String, dynamic> data,
-    File? imagen,
-  ) async {
-    final token = await _getToken();
-    final url = Uri.parse("$baseUrl/productos/$id/");
-
-    var request = http.MultipartRequest("PATCH", url);
-    request.headers["Authorization"] = "Token $token";
-
-    data.forEach((key, value) {
-      request.fields[key] = value.toString();
-    });
-
-    if (imagen != null) {
-      request.files.add(
-        await http.MultipartFile.fromPath('imagen', imagen.path),
-      );
-    }
-
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-
-    if (response.statusCode != 200) {
-      throw Exception("Error al editar producto: ${response.body}");
-    }
-  }
-
-  Future<void> eliminarProducto(int id) async {
-    final token = await _getToken();
-    final response = await http.delete(
-      Uri.parse("$baseUrl/productos/$id/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
+          return handler.next(options);
+        },
+        onError: (DioException e, handler) {
+          // Opcional: Si el servidor responde 401, podrías redirigir al Login aquí
+          return handler.next(e);
+        },
+      ),
     );
-    if (response.statusCode != 204) {
-      throw Exception("Error al eliminar producto");
-    }
   }
 
-  // ------------------ CLIENTES ------------------
-  Future<List<dynamic>> getClientes() async {
-    final token = await _getToken();
-    final response = await http.get(
-      Uri.parse("$baseUrl/clientes/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-    );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data["results"];
-    } else if (response.statusCode == 401) {
-      await _storage.delete(key: "token");
-      throw Exception("Sesión expirada, vuelve a iniciar sesión");
-    } else {
-      throw Exception("Error al obtener clientes: ${response.body}");
-    }
+  // Métodos de ayuda para que sea más fácil de usar
+  Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) {
+    return dio.get(path, queryParameters: queryParameters);
   }
 
-  Future<void> createCliente(Map<String, dynamic> cliente) async {
-    final token = await _getToken();
-    final response = await http.post(
-      Uri.parse("$baseUrl/clientes/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode(cliente),
-    );
-    if (response.statusCode != 201) {
-      throw Exception("Error al crear cliente: ${response.body}");
-    }
+  // El POST necesita data para el body
+  Future<Response> post(String path, {dynamic data}) {
+    return dio.post(path, data: data);
   }
 
-  Future<void> updateCliente(int id, Map<String, dynamic> cliente) async {
-    final token = await _getToken();
-    final response = await http.put(
-      Uri.parse("$baseUrl/clientes/$id/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode(cliente),
-    );
-    if (response.statusCode != 200) {
-      throw Exception("Error al actualizar cliente: ${response.body}");
-    }
+  // El PUT necesita data
+  Future<Response> put(String path, {dynamic data}) {
+    return dio.put(path, data: data);
   }
 
-  Future<void> deleteCliente(int id) async {
-    final token = await _getToken();
-    final response = await http.delete(
-      Uri.parse("$baseUrl/clientes/$id/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-    );
-    if (response.statusCode != 204) {
-      throw Exception("Error al eliminar cliente: ${response.body}");
-    }
+  // El PATCH (Muy usado en tus APIs de Django)
+  Future<Response> patch(String path, {dynamic data}) {
+    return dio.patch(path, data: data);
   }
 
-  // ------------------ PEDIDOS ------------------
-  Future<List<dynamic>> getPedidos() async {
-    final token = await _getToken();
-    final response = await http.get(
-      Uri.parse("$baseUrl/pedidos/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-    );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data["results"];
-    } else if (response.statusCode == 401) {
-      await _storage.delete(key: "token");
-      throw Exception("Sesión expirada, vuelve a iniciar sesión");
-    } else {
-      throw Exception("Error al obtener pedidos: ${response.body}");
-    }
-  }
-
-  Future<void> createPedido(Map<String, dynamic> pedido) async {
-    final token = await _getToken();
-    final response = await http.post(
-      Uri.parse("$baseUrl/pedidos/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode(pedido),
-    );
-    if (response.statusCode != 201) {
-      throw Exception("Error al crear pedido: ${response.body}");
-    }
-  }
-
-  Future<void> updatePedido(int id, Map<String, dynamic> pedido) async {
-    final token = await _getToken();
-    final response = await http.put(
-      Uri.parse("$baseUrl/pedidos/$id/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode(pedido),
-    );
-    if (response.statusCode != 200) {
-      throw Exception("Error al actualizar pedido: ${response.body}");
-    }
-  }
-
-  Future<void> deletePedido(int id) async {
-    final token = await _getToken();
-    final response = await http.delete(
-      Uri.parse("$baseUrl/pedidos/$id/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-    );
-    if (response.statusCode != 204) {
-      throw Exception("Error al eliminar pedido: ${response.body}");
-    }
-  }
-
-  Future<List<dynamic>> getCategorias() async {
-    final response = await http.get(
-      Uri.parse("$baseUrl/categorias/"),
-      headers: {"Content-Type": "application/json"},
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data["results"]; // si usas paginación DRF
-    } else {
-      throw Exception("Error al obtener categorias: ${response.body}");
-    }
-  }
-
-  Future<void> createCategoria(Map<String, dynamic> categoria) async {
-    final token = await _getToken();
-    final response = await http.post(
-      Uri.parse("$baseUrl/categorias/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode(categoria),
-    );
-    if (response.statusCode != 201) {
-      throw Exception("Error al crear categoría: ${response.body}");
-    }
-  }
-
-  Future<void> updateCategoria(int id, Map<String, dynamic> categoria) async {
-    final token = await _getToken();
-    final response = await http.put(
-      Uri.parse("$baseUrl/categorias/$id/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode(categoria),
-    );
-    if (response.statusCode != 200) {
-      throw Exception("Error al actualizar categoría: ${response.body}");
-    }
-  }
-
-  Future<void> deleteCategoria(int id) async {
-    final token = await _getToken();
-    final response = await http.delete(
-      Uri.parse("$baseUrl/categorias/$id/"),
-      headers: {
-        "Authorization": "Token $token",
-        "Content-Type": "application/json",
-      },
-    );
-
-    if (response.statusCode != 204) {
-      throw Exception("Error al eliminar categoría: ${response.body}");
-    }
+  // El DELETE no suele llevar body ni params
+  Future<Response> delete(String path) {
+    return dio.delete(path);
   }
 }
+
+// Instancia global para usar en toda la app
+final api = ApiService();
